@@ -1,5 +1,5 @@
 import z from "zod";
-import { zodParse } from "../utils/zod-parse.js";
+import { zodParse } from "../util/zod-parse.js";
 
 const EnvSchema = z.object({
     CLOUDFLARE_ACCOUNT_ID: z.hex().length(32),

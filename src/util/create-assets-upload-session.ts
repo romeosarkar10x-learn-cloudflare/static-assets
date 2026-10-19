@@ -1,9 +1,9 @@
 import z from "zod";
-import { EnvResultAsync } from "../lib/env.js";
-import { safeFetch } from "./safe-fetch.js";
-import { zodParse } from "./zod-parse.js";
-import { parseResponseJson } from "./parse-response-json.js";
-import type { ProcessedFileType } from "./process-file.js";
+import { EnvResultAsync } from "../lib/env.ts";
+import { safeFetch } from "./safe-fetch.ts";
+import { zodParse } from "./zod-parse.ts";
+import { parseResponseJson } from "./parse-response-json.ts";
+import type { ProcessedFileType } from "./process-file.ts";
 
 const ResponseSchema = z.object({
     result: z.object({

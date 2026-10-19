@@ -1,9 +1,9 @@
 import "dotenv/config";
 import path from "node:path";
-import { getFiles } from "./utils/get-files.ts";
-import { processFile, type ProcessedFileType } from "./utils/process-file.ts";
+import { getFiles } from "./util/get-files.ts";
+import { processFile, type ProcessedFileType } from "./util/process-file.ts";
 import { Result } from "neverthrow";
-import { createAssetsUploadSession } from "./utils/create-assets-upload-session.ts";
+import { createAssetsUploadSession } from "./util/create-assets-upload-session.ts";
 
 const DIR = "files";
 
