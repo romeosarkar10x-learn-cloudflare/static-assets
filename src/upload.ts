@@ -1,14 +1,15 @@
 import "dotenv/config";
 import path from "node:path";
-import { getFiles } from "./util/get-files.ts";
 import { processFile, type ProcessedFileType } from "./util/process-file.ts";
 import { Result } from "neverthrow";
 import { createAssetsUploadSession } from "./util/create-assets-upload-session.ts";
+import { readDirRecursive } from "./util/read-dir-recursive.ts";
 
-const DIR = "files";
+const DIR = "upload";
 
-getFiles(DIR)
-    .andThen((files) => Result.combine(files.map((pathname) => processFile(path.join(DIR, pathname)))))
+readDirRecursive(DIR)
+    .map((entries) => entries.filter((entry) => entry.isFile()))
+    .andThen((files) => Result.combine(files.map((entry) => processFile(path.join(entry.parentPath, entry.name)))))
     .map((processedFiles) => {
         const processedFilesMap: Record<string, ProcessedFileType> = {};
 
@@ -18,7 +19,13 @@ getFiles(DIR)
 
         return processedFilesMap;
     })
-    .asyncAndThen((files) => createAssetsUploadSession(files).map((session) => ({ session, processedFiles: files })));
+    .map((files) => {
+        console.log("files:", files);
+    })
+    .mapErr((error) => {
+        console.error(error);
+    });
+// .asyncAndThen((files) => createAssetsUploadSession(files).map((session) => ({ session, processedFiles: files })));
 
 // processedFiles.forEach
 
