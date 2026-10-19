@@ -19,6 +19,7 @@
         "declaration": true,
         "declarationMap": true,
 
+        "noEmit": true,
         // Stricter Typechecking Options
         "noUncheckedIndexedAccess": true,
         "exactOptionalPropertyTypes": true,
@@ -34,7 +35,7 @@
 
         // Recommended Options
         "strict": true,
-        "jsx": "react-jsx",
+        // "jsx": "react-jsx",
         "verbatimModuleSyntax": true,
         "isolatedModules": true,
         "noUncheckedSideEffectImports": true,
@@ -42,5 +43,5 @@
         "skipLibCheck": true
     },
 
-    "include": ["./**/*"]
+    "include": ["src/**/*"]
 }
