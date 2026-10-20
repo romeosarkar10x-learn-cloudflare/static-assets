@@ -101,6 +101,106 @@ curl -X POST \
   -F "hashB=$(base64 -w0 upload/file-amber-2819.css);type=text/css"
 ```
 
+### Wire format Cloudflare expects
+
+Standard `multipart/form-data` ([RFC 7578][rfc7578]). Request headers:
+
+```
+POST /client/v4/accounts/<account_id>/workers/assets/upload?base64=true
+Authorization: Bearer <upload JWT>
+Content-Type: multipart/form-data; boundary=<boundary>
+```
+
+Body (every line ends in CRLF `\r\n`; `<boundary>` is any random string not found in the content):
+
+```
+--<boundary>
+Content-Disposition: form-data; name="<hashA>"; filename="<hashA>"
+Content-Type: text/html
+
+PGh0bWw+PGJvZHk+aGk8L2JvZHk+PC9odG1sPgo=
+--<boundary>
+Content-Disposition: form-data; name="<hashB>"; filename="<hashB>"
+Content-Type: text/css
+
+Ym9keSB7IGNvbG9yOiByZWQgfQo=
+--<boundary>--
+```
+
+Per part:
+
+| piece | value |
+|---|---|
+| `name` | the 32-hex hash from the bucket. One part per hash in the bucket. |
+| `filename` | the same hash. Wrangler and the Direct Uploads sample code both set it ([`assets.ts`][wrangler-assets]). `curl -F name=value` (above) sends no filename. |
+| part `Content-Type` | the file's real MIME type (`text/html`, `image/png`, ...). Cloudflare serves the file with it. `application/null` = none. |
+| part body | the file contents **base64-encoded**, as ASCII text. Never raw bytes, because of `?base64=true`. |
+
+The CRLF right before each `--<boundary>` belongs to the delimiter, not to the content.
+
+#### Where do the real file paths go?
+
+Not in this request. The upload is content-addressed: a part says "here are the bytes for hash X", and
+`filename` carries no meaning (wrangler fills it with the hash only because a Blob part always gets one).
+Paths come from the **step 2 manifest**:
+
+```
+step 2 manifest:  "/dir-cobalt-6542/file-comet-8732.html" -> { hash: "a1b2...", size: 567 }
+step 3 upload:    part name "a1b2..." -> base64 content (+ Content-Type)
+step 4 deploy:    completion JWT links the Worker version to that manifest
+request:          GET /dir-cobalt-6542/file-comet-8732.html -> manifest -> hash -> bytes
+```
+
+The upload JWT carries the session's `manifest_id`, which ties the uploaded hashes to the manifest. This is
+also why identical files are uploaded once, and why `buckets` can leave out hashes Cloudflare already
+stores: a path can point to bytes that already exist.
+
+#### Node / undici `FormData`
+
+`fetch` with a `FormData` body produces exactly this format and sets the request `Content-Type` (with
+the boundary) for you. **Don't set `content-type` yourself**: the boundary would be missing and the body unparseable.
+
+```ts
+const form = new FormData();
+
+for (const hash of bucket) {
+    const file = filesByHash[hash]; // { contents: Buffer, contentType: string }
+    form.append(hash, new Blob([file.contents.toString("base64")], { type: file.contentType }), hash);
+}
+
+await fetch(url, { method: "POST", headers: { authorization: `Bearer ${uploadJwt}` }, body: form });
+```
+
+Example: this test serialization (`tmp/test-form-data.mts`) has the right structure but the wrong values:
+
+```ts
+formData.append("asdf", new Blob(["\x00\x001234"], { type: "gadha" }), "file.txt");
+formData.append("asdf", new Blob(["1234"], { type: "gadha" }));
+```
+
+```
+------formdata-undici-098332564195
+Content-Disposition: form-data; name="asdf"; filename="file.txt"
+Content-Type: gadha
+
+\x00\x001234
+------formdata-undici-098332564195
+Content-Disposition: form-data; name="asdf"; filename="blob"
+Content-Type: gadha
+
+1234
+------formdata-undici-098332564195--
+```
+
+| seen | should be |
+|---|---|
+| `name="asdf"` | `name="<hash>"` |
+| `filename="file.txt"` / `filename="blob"` | `filename="<hash>"`. undici always writes a `filename` for a Blob value and uses `"blob"` when the 3rd `append` argument is missing. |
+| `Content-Type: gadha` | real MIME type, e.g. `text/plain` |
+| `\x00\x001234` (raw bytes) | `AAAxMjM0` (base64 of those bytes) |
+| boundary `----formdata-undici-<digits>` | fine. Any boundary works. Cloudflare reads it from the request header. |
+| line breaks shown as `\n` | the real body uses `\r\n`. The test script prints each `\r\n` as `\n`. |
+
 Response:
 
 ```json
@@ -262,6 +362,7 @@ Wrangler source (how the official client does it)
 - [`deploy-helpers/.../hash.ts`][wrangler-hash] — file hash
 - [`deploy-helpers/.../create-worker-upload-form.ts`][wrangler-upload-form] — script upload metadata (assets-only short circuit)
 
+[rfc7578]: https://www.rfc-editor.org/rfc/rfc7578
 [direct-upload]: https://developers.cloudflare.com/workers/static-assets/direct-upload/
 [assets-binding]: https://developers.cloudflare.com/workers/static-assets/binding/
 [multipart-metadata]: https://developers.cloudflare.com/workers/configuration/multipart-upload-metadata/
